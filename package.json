@@ -1,0 +1,57 @@
+{
+  "name": "@alkimiadev/open-coordinator",
+  "version": "1.0.0",
+  "description": "OpenCode plugin for coordinated git worktree workflows with enhanced session management.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "open-coordinator": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly",
+    "lint": "bunx @biomejs/biome check .",
+    "format": "bunx @biomejs/biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:e2e": "bun test tests/e2e.test.ts"
+  },
+  "author": "Alkimia Development",
+  "contributors": [
+    "0xSero (original open-trees author)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alkimiadev/open-coordinator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alkimiadev/open-coordinator/issues"
+  },
+  "homepage": "https://github.com/alkimiadev/open-coordinator#readme",
+  "keywords": [
+    "opencode",
+    "plugin",
+    "git",
+    "worktree",
+    "coordinator"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.1.3",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@bun-security-scanner/osv": "^1.0.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.7.3"
+  }
+}
