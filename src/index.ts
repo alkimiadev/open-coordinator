@@ -1,16 +1,16 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import type { Event } from "@opencode-ai/sdk";
-
+import { deleteSessionMetrics, startDetection } from "./detection";
 import { findSessionEntry, removeSessionMappings } from "./state";
 import { createTools } from "./tools";
-import { startDetection } from "./detection";
 
 const getDeletedSessionId = (event: Event) =>
   event.type === "session.deleted" ? event.properties.info.id : "";
 
 const OpenTreesPlugin: Plugin = async (ctx) => {
-  startDetection(ctx).catch((error) => {
+  const _detectionController = await startDetection(ctx).catch((error) => {
     console.error("Failed to start detection monitoring:", error);
+    return null;
   });
 
   return {
@@ -18,6 +18,7 @@ const OpenTreesPlugin: Plugin = async (ctx) => {
     event: async ({ event }) => {
       const sessionID = getDeletedSessionId(event);
       if (!sessionID) return;
+      deleteSessionMetrics(sessionID);
       await removeSessionMappings(sessionID);
     },
     "tool.execute.before": async (input, output) => {

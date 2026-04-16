@@ -2,19 +2,25 @@ import type { PluginInput } from "@opencode-ai/plugin";
 import type { Event } from "@opencode-ai/sdk";
 import type { WorktreeSessionEntry } from "../state";
 import { findSessionEntry, readState } from "../state";
+import { checkAllAnomalies } from "./heuristics";
 import {
   createSessionMetrics,
-  updateActivityTime,
-  incrementToolErrors,
   incrementMalformedTools,
+  incrementToolErrors,
+  updateActivityTime,
   updateSessionStatus,
 } from "./metrics";
-import { checkAllAnomalies } from "./heuristics";
 import { notifyCoordinator } from "./notify";
-import type { SessionMetrics, DetectionThresholds } from "./types";
+import type { DetectionThresholds, SessionMetrics } from "./types";
 import { DEFAULT_THRESHOLDS } from "./types";
 
+const SSE_MAX_RETRY_ATTEMPTS = 15;
+
 const sessionMetrics = new Map<string, SessionMetrics>();
+
+export const deleteSessionMetrics = (sessionID: string): void => {
+  sessionMetrics.delete(sessionID);
+};
 
 const isSpawnedSession = async (sessionID: string): Promise<boolean> => {
   const stateResult = await readState();
@@ -114,8 +120,14 @@ const handleEvent = async (
   }
 };
 
-const startStallDetection = (ctx: PluginInput, thresholds: DetectionThresholds): void => {
-  setInterval(async () => {
+const startStallDetection = (
+  ctx: PluginInput,
+  thresholds: DetectionThresholds,
+  signal: AbortSignal,
+): NodeJS.Timeout => {
+  const intervalId = setInterval(async () => {
+    if (signal.aborted) return;
+
     const now = Date.now();
 
     for (const [sessionID, metrics] of sessionMetrics) {
@@ -145,24 +157,39 @@ const startStallDetection = (ctx: PluginInput, thresholds: DetectionThresholds):
       }
     }
   }, thresholds.stallCheckIntervalMs);
+
+  signal.addEventListener("abort", () => clearInterval(intervalId), { once: true });
+
+  return intervalId;
 };
 
 export const startDetection = async (
   ctx: PluginInput,
   thresholds = DEFAULT_THRESHOLDS,
-): Promise<void> => {
-  try {
-    const eventStreamResult = await ctx.client.global.event();
+): Promise<AbortController> => {
+  const abortController = new AbortController();
+  const { signal } = abortController;
 
-    startStallDetection(ctx, thresholds);
+  try {
+    const eventStreamResult = await ctx.client.global.event({
+      signal,
+      sseMaxRetryAttempts: SSE_MAX_RETRY_ATTEMPTS,
+    });
+
+    startStallDetection(ctx, thresholds, signal);
 
     const stream = eventStreamResult.stream;
     for await (const event of stream) {
+      if (signal.aborted) break;
       await handleEvent(ctx, event as unknown as Event, thresholds);
     }
   } catch (error) {
-    console.error("Detection loop error:", error);
+    if (!signal.aborted) {
+      console.error("Detection loop error:", error);
+    }
   }
+
+  return abortController;
 };
 
 export { sessionMetrics };
