@@ -163,31 +163,33 @@ const startStallDetection = (
   return intervalId;
 };
 
-export const startDetection = async (
+export const startDetection = (
   ctx: PluginInput,
   thresholds = DEFAULT_THRESHOLDS,
-): Promise<AbortController> => {
+): AbortController => {
   const abortController = new AbortController();
   const { signal } = abortController;
 
-  try {
-    const eventStreamResult = await ctx.client.global.event({
-      signal,
-      sseMaxRetryAttempts: SSE_MAX_RETRY_ATTEMPTS,
-    });
+  (async () => {
+    try {
+      const eventStreamResult = await ctx.client.global.event({
+        signal,
+        sseMaxRetryAttempts: SSE_MAX_RETRY_ATTEMPTS,
+      });
 
-    startStallDetection(ctx, thresholds, signal);
+      startStallDetection(ctx, thresholds, signal);
 
-    const stream = eventStreamResult.stream;
-    for await (const event of stream) {
-      if (signal.aborted) break;
-      await handleEvent(ctx, event as unknown as Event, thresholds);
+      const stream = eventStreamResult.stream;
+      for await (const event of stream) {
+        if (signal.aborted) break;
+        await handleEvent(ctx, event as unknown as Event, thresholds);
+      }
+    } catch (error) {
+      if (!signal.aborted) {
+        console.error("Detection loop error:", error);
+      }
     }
-  } catch (error) {
-    if (!signal.aborted) {
-      console.error("Detection loop error:", error);
-    }
-  }
+  })();
 
   return abortController;
 };

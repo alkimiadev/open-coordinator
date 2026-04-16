@@ -8,10 +8,7 @@ const getDeletedSessionId = (event: Event) =>
   event.type === "session.deleted" ? event.properties.info.id : "";
 
 const OpenTreesPlugin: Plugin = async (ctx) => {
-  const _detectionController = await startDetection(ctx).catch((error) => {
-    console.error("Failed to start detection monitoring:", error);
-    return null;
-  });
+  const detectionController = startDetection(ctx);
 
   return {
     tool: createTools(ctx),
