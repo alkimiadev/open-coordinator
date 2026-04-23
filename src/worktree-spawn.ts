@@ -27,6 +27,41 @@ export const substituteTemplate = (template: string, task: string) => {
   return template.replace(/\{\{task\}\}/g, task);
 };
 
+type AssistantMessage = {
+  modelID: string;
+  providerID: string;
+};
+
+const resolveCoordinatorModel = async (
+  ctx: PluginInput,
+  coordinatorSessionID: string,
+): Promise<{ providerID: string; modelID: string } | null> => {
+  try {
+    const response = await ctx.client.session.messages({
+      path: { id: coordinatorSessionID },
+      query: { limit: 20 },
+    });
+    const result = unwrapSdkResponse<AssistantMessage[]>(response, "Session messages");
+    if (!result.ok) return null;
+
+    const messages = result.data;
+    if (!Array.isArray(messages)) return null;
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i] as Record<string, unknown>;
+      if (msg.modelID && msg.providerID) {
+        return {
+          modelID: msg.modelID as string,
+          providerID: msg.providerID as string,
+        };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const spawnWorktrees = async (
   ctx: PluginInput,
   parentSessionID: string | undefined,
@@ -50,6 +85,8 @@ export const spawnWorktrees = async (
 
   const repoRoot = await getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
+
+  const effectiveModel = options.model ?? (await resolveCoordinatorModel(ctx, parentSessionID));
 
   const prefix = options.prefix ?? "wt/";
   const spawned: SpawnedSession[] = [];
@@ -117,7 +154,7 @@ export const spawnWorktrees = async (
         body: {
           parts: [{ type: "text", text: promptText }],
           ...(options.agent && { agent: options.agent }),
-          ...(options.model && { model: options.model }),
+          ...(effectiveModel && { model: effectiveModel }),
         },
       });
     }
@@ -137,6 +174,13 @@ export const spawnWorktrees = async (
   lines.push("|------|-----------|--------|--------------|");
   for (const s of spawned) {
     lines.push(`| ${s.task} | ${s.sessionID} | ${s.branch} | ${s.worktreePath} |`);
+  }
+
+  if (effectiveModel) {
+    lines.push("");
+    lines.push(
+      `Model: ${effectiveModel.providerID}/${effectiveModel.modelID}${options.model ? " (explicit)" : " (inherited from coordinator)"}`,
+    );
   }
 
   if (errors.length > 0) {

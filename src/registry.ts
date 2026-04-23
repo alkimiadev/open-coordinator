@@ -101,7 +101,7 @@ Args: name, branch, base, path, pathOrBranch, openSessions (boolean).`,
   swarm: `**swarm** — Create multiple worktrees + sessions for parallel tasks.
 Args: tasks (string[], required), prefix (string, default "wt/"), openSessions (boolean), force (boolean).`,
   spawn: `**spawn** — Create worktrees + sessions + send initial prompts asynchronously.
-Args: tasks (string[], required), prefix (string, default "wt/"), agent (string), prompt (string, use {{task}} for substitution).`,
+Args: tasks (string[], required), prefix (string, default "wt/"), agent (string), prompt (string, use {{task}} for substitution), model (object: {providerID, modelID}, defaults to coordinator's model).`,
   message: `**message** — Send a message to a spawned session for recovery or check-ins.
 Args: sessionID (string, required), message (string, required), agent (string, optional).`,
   notify: `**notify** — Send a message back to the coordinator session. Implementation agents use this to report completion or issues.
@@ -211,11 +211,19 @@ const handlers: Record<string, Handler> = {
     if (!tasks || tasks.length === 0) {
       return formatError("Tasks array is required.", { hint: "Provide one or more task names." });
     }
+    const modelArg =
+      typeof args.model === "object" && args.model !== null
+        ? {
+            providerID: (args.model as Record<string, unknown>).providerID as string,
+            modelID: (args.model as Record<string, unknown>).modelID as string,
+          }
+        : undefined;
     const result = await spawnWorktrees(hctx.ctx, hctx.sessionID, {
       tasks,
       prefix: typeof args.prefix === "string" ? args.prefix : undefined,
       agent: typeof args.agent === "string" ? args.agent : undefined,
       prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+      model: modelArg,
     });
     return result.ok ? result.output : result.error;
   },
