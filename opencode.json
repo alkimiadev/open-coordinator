@@ -1,4 +1,4 @@
 {
-  "plugin": ["@alkimiadev/open-coordinator"],
+  "plugin": ["@alkdev/open-coordinator"],
   "$schema": "https://opencode.ai/config.json"
 }

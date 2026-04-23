@@ -1,6 +1,6 @@
 # AGENTS.md
 
-## Worktree Tools (via @alkimiadev/open-coordinator plugin)
+## Worktree Tools (via @alkdev/open-coordinator plugin)
 
 You have access to a single `worktree` tool for managing git worktree workflows. Call with `{action: "<operation>", args: {...}}`.
 

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { formatError } from "./format";
 import { updateConfigText } from "./opencode-config";
 
-const DEFAULT_PLUGIN = "open-coordinator";
+const DEFAULT_PLUGIN = "@alkdev/open-coordinator";
 const CONFIG_FILES = ["opencode.json", "opencode.jsonc"] as const;
 
 type CliOptions = {

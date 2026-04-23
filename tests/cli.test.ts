@@ -7,7 +7,7 @@ test("parseArgs defaults to add", () => {
   expect("error" in result).toBe(false);
   if ("error" in result) return;
   expect(result.command).toBe("add");
-  expect(result.pluginName).toBe("open-coordinator");
+  expect(result.pluginName).toBe("@alkdev/open-coordinator");
   expect(result.dryRun).toBe(false);
 });
 

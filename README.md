@@ -35,7 +35,7 @@ Manual config:
 
 ```json
 {
-  "plugin": ["@alkimiadev/open-coordinator"]
+  "plugin": ["@alkdev/open-coordinator"]
 }
 ```
 
@@ -181,7 +181,7 @@ For best results, use alongside `@alkdev/open-memory` which provides:
 
 ```json
 {
-  "plugin": ["@alkimiadev/open-coordinator", "@alkdev/open-memory"]
+  "plugin": ["@alkdev/open-coordinator", "@alkdev/open-memory"]
 }
 ```
 
@@ -205,8 +205,8 @@ bun run test
 For local testing, symlink your repo to OpenCode's plugin cache:
 
 ```bash
-rm -rf ~/.cache/opencode/node_modules/@alkimiadev/open-coordinator
-ln -s /path/to/open-coordinator ~/.cache/opencode/node_modules/@alkimiadev/open-coordinator
+rm -rf ~/.cache/opencode/node_modules/@alkdev/open-coordinator
+ln -s /path/to/open-coordinator ~/.cache/opencode/node_modules/@alkdev/open-coordinator
 ```
 
 After rebuilding (`bun run build`), restart OpenCode to pick up changes.

@@ -1,6 +1,6 @@
 {
-  "name": "@alkimiadev/open-coordinator",
-  "version": "1.0.0",
+  "name": "@alkdev/open-coordinator",
+  "version": "2.0.0",
   "description": "OpenCode plugin for coordinated git worktree workflows with enhanced session management.",
   "type": "module",
   "main": "dist/index.js",
@@ -11,11 +11,10 @@
       "import": "./dist/index.js"
     }
   },
-  "bin": {
-    "open-coordinator": "./dist/cli.js"
-  },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
   ],
   "scripts": {
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly",
@@ -37,6 +36,9 @@
     "url": "https://github.com/alkimiadev/open-coordinator/issues"
   },
   "homepage": "https://github.com/alkimiadev/open-coordinator#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "opencode",
     "plugin",
@@ -44,7 +46,7 @@
     "worktree",
     "coordinator"
   ],
-  "license": "MIT",
+  "license": "(MIT OR Apache-2.0)",
   "dependencies": {
     "@opencode-ai/plugin": "^1.1.3",
     "jsonc-parser": "^3.3.1"
