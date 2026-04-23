@@ -345,7 +345,7 @@ export const forkWorktreeSession = async (
   const title = `wt:${targetResult.target.branch}`;
   const createResponse = await ctx.client.session.create({
     query: { directory: targetResult.target.worktreePath },
-    body: { title },
+    body: { title, parentID: sessionID },
   });
   const createResult = unwrapSdkResponse<{ id: string }>(createResponse, "Session create");
   if (!createResult.ok) return err(createResult.error);

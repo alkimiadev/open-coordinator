@@ -82,7 +82,7 @@ export const spawnWorktrees = async (
     const title = `wt:${branch}`;
     const createResponse = await ctx.client.session.create({
       query: { directory: worktreeResult.result.worktreePath },
-      body: { title },
+      body: { title, parentID: parentSessionID },
     });
     const createResult = unwrapSdkResponse<{ id: string }>(createResponse, "Session create");
     if (!createResult.ok) {

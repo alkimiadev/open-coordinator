@@ -111,7 +111,7 @@ export const swarmWorktrees = async (
     const title = `wt:${worktreeResult.result.branch}`;
     const createResponse = await ctx.client.session.create({
       query: { directory: worktreeResult.result.worktreePath },
-      body: { title },
+      body: { title, parentID: sessionID },
     });
     const createResult = unwrapSdkResponse<{ id: string }>(createResponse, "Session create");
     if (!createResult.ok) {
