@@ -27,9 +27,12 @@ export const substituteTemplate = (template: string, task: string) => {
   return template.replace(/\{\{task\}\}/g, task);
 };
 
-type AssistantMessage = {
-  modelID: string;
-  providerID: string;
+type MessageWithInfo = {
+  info: {
+    role: string;
+    modelID?: string;
+    providerID?: string;
+  };
 };
 
 const resolveCoordinatorModel = async (
@@ -41,18 +44,18 @@ const resolveCoordinatorModel = async (
       path: { id: coordinatorSessionID },
       query: { limit: 20 },
     });
-    const result = unwrapSdkResponse<AssistantMessage[]>(response, "Session messages");
+    const result = unwrapSdkResponse<MessageWithInfo[]>(response, "Session messages");
     if (!result.ok) return null;
 
     const messages = result.data;
     if (!Array.isArray(messages)) return null;
 
     for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as Record<string, unknown>;
-      if (msg.modelID && msg.providerID) {
+      const info = messages[i]?.info;
+      if (info?.role === "assistant" && info.modelID && info.providerID) {
         return {
-          modelID: msg.modelID as string,
-          providerID: msg.providerID as string,
+          modelID: info.modelID,
+          providerID: info.providerID,
         };
       }
     }
