@@ -7,8 +7,8 @@ import { createTools } from "./tools";
 const getDeletedSessionId = (event: Event) =>
   event.type === "session.deleted" ? event.properties.info.id : "";
 
-const OpenTreesPlugin: Plugin = async (ctx) => {
-  const detectionController = startDetection(ctx);
+const OpenCoordinatorPlugin: Plugin = async (ctx) => {
+  const _detectionController = startDetection(ctx);
 
   return {
     tool: createTools(ctx),
@@ -51,4 +51,4 @@ You are summarizing for yourself, not another agent.`;
   };
 };
 
-export default OpenTreesPlugin;
+export default OpenCoordinatorPlugin;

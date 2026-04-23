@@ -29,7 +29,7 @@ export const statusWorktrees = async (
     if (targets.length === 0) {
       return err(
         formatError("Worktree path not found.", {
-          hint: 'Use worktree_overview { "view": "list" } to see available paths.',
+          hint: 'Use worktree({action: "list"}) to see available paths.',
         }),
       );
     }

@@ -200,7 +200,7 @@ export const removeWorktree = async (
   if (matchResult.matches.length === 0) {
     return err(
       formatError("No worktree matches the provided value.", {
-        hint: 'Use worktree_overview { "view": "list" } to see available worktrees.',
+        hint: 'Use worktree({action: "list"}) to see available worktrees.',
       }),
     );
   }
@@ -218,7 +218,7 @@ export const removeWorktree = async (
   if (!(await pathExists(target.path))) {
     return err(
       formatError("Worktree path does not exist.", {
-        hint: 'If it was deleted manually, run worktree_cleanup { "action": "prune" } instead.',
+        hint: 'If it was deleted manually, run worktree({action: "cleanup", args: {action: "prune"}}) instead.',
       }),
     );
   }

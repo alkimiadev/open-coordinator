@@ -1,6 +1,6 @@
-import type { AnomalyType, AnomalyInfo } from "./types";
-import type { WorktreeSessionEntry } from "../state";
 import type { OpencodeClient } from "@opencode-ai/sdk";
+import type { WorktreeSessionEntry } from "../state";
+import type { AnomalyInfo, AnomalyType } from "./types";
 
 export const formatAnomalyNotification = (
   sessionID: string,
@@ -26,14 +26,14 @@ export const formatAnomalyNotification = (
     lines.push("1. Send recovery message first");
     lines.push("2. Abort if no improvement");
     lines.push("");
-    lines.push(`Run: worktree_abort({ "sessionID": "${sessionID}" })`);
+    lines.push(`Run: worktree({action: "abort", args: {sessionID: "${sessionID}"}})`);
   } else if (type === "SESSION_STALL") {
     lines.push("No activity detected while session is busy.");
     lines.push("This may be an OpenCode parsing bug. The model can usually recover.");
     lines.push(`Consider sending: "There was an error, please continue."`);
     lines.push("");
     lines.push(
-      `Run: worktree_message({ "sessionID": "${sessionID}", "message": "please continue" })`,
+      `Run: worktree({action: "message", args: {sessionID: "${sessionID}", message: "please continue"}})`,
     );
   } else if (type === "HIGH_ERROR_COUNT") {
     lines.push(`Detected ${anomaly.count ?? "multiple"} tool errors in this session.`);

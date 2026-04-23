@@ -13,11 +13,12 @@ OpenCode plugin for fast, safe `git worktree` workflows with enhanced session ma
 
 ## Features
 
-- **Automatic workdir injection** - Plugin hooks inject workdir for mapped sessions
-- **Fresh sessions** - Clean context using `session.create()` instead of `session.fork()`
-- **Bidirectional communication** - Coordinator ↔ spawned sessions messaging
-- **Real-time monitoring** - SSE-based anomaly detection with automatic notifications
-- **Session state tracking** - Track spawned sessions with parent/child relationships
+- **Single tool, registry pattern** — One `worktree` tool with `{action, args}` dispatch (like `@alkdev/open-memory`)
+- **Automatic role detection** — Coordinator vs. implementation roles inferred from session state
+- **No mode toggle** — Removed the old `worktree_mode` gate; all operations work immediately
+- **Fresh sessions** — Clean context using `session.create()` instead of `session.fork()`
+- **Bidirectional communication** — Coordinator ↔ spawned sessions messaging
+- **Real-time monitoring** — SSE-based anomaly detection with automatic notifications
 
 ## Install
 
@@ -51,147 +52,79 @@ bun run build
 }
 ```
 
-## Worktree mode
+## The `worktree` Tool
 
-Worktree tools are gated behind worktree mode so they do not clutter the default tool list.
-Enable it when you want to work with worktrees, then disable it when you are done.
+The plugin exposes a single `worktree` tool. Call it with `{action: "<operation>", args: {...}}`:
 
 ```text
-worktree_mode { "action": "on" }
-worktree_mode { "action": "off" }
+worktree({action: "help"})                           → Show all available operations
+worktree({action: "help", args: {action: "spawn"}})  → Details for the spawn operation
 ```
 
-`worktree_mode` also prints a help sheet (tools + examples) so the model has the usage context.
+### Role-Based Access
 
-Slash-native toggle (see `.opencode/command/worktree.md`):
+Operations available depend on your session's role:
+
+**Coordinator** (default — sessions not spawned by another session):
 
 ```text
-/worktree on
-/worktree off
+worktree({action: "list"})                           → List git worktrees
+worktree({action: "status"})                         → Show worktree git status
+worktree({action: "dashboard"})                      → Worktree dashboard with session info
+worktree({action: "create", args: {name: "feat"}})   → Create a new worktree
+worktree({action: "start", args: {name: "feat"}})    → Create worktree + start fresh session
+worktree({action: "open", args: {pathOrBranch: "feat"}}) → Open existing worktree in session
+worktree({action: "fork", args: {name: "feat"}})     → Create worktree + fork current context
+worktree({action: "swarm", args: {tasks: ["a","b"]}}) → Parallel worktrees + sessions
+worktree({action: "spawn", args: {tasks: ["a","b"], prompt: "Task: {{task}}"}})
+                                                     → Spawn with async prompts
+worktree({action: "message", args: {sessionID: "ses_...", message: "..."}}) → Message session
+worktree({action: "sessions"})                       → Query spawned session status
+worktree({action: "abort", args: {sessionID: "ses_..."}}) → Abort a session
+worktree({action: "cleanup", args: {action: "prune", dryRun: true}}) → Prune worktrees
+worktree({action: "cleanup", args: {action: "remove", pathOrBranch: "feat"}}) → Remove worktree
 ```
 
-`/worktree on` enables the tools and emits the help sheet into the session.
-`/worktree off` disables them and keeps them off for the next session.
-
-## Tools
-
-### Core Worktree Tools
-
-- `worktree_mode` — enable/disable worktree mode and show help.
-- `worktree_overview` — list, status, or dashboard worktrees.
-- `worktree_make` — create/open/fork worktrees and sessions.
-- `worktree_cleanup` — remove or prune worktrees safely.
-
-### Session Management Tools
-
-- `worktree_status` — query status of spawned sessions.
-- `worktree_message` — send messages to spawned sessions for recovery or check-ins.
-- `worktree_notify` — send messages back to coordinator session (completion, blocking issues).
-- `worktree_abort` — abort stuck or degraded sessions.
-- `worktree_current` — query worktree mapping for current session.
-
-### Examples
-
-Enable worktree mode:
+**Implementation** (sessions spawned by a coordinator — limited to prevent recursive worktree creation):
 
 ```text
-worktree_mode { "action": "on" }
+worktree({action: "current"})                        → Show your worktree mapping
+worktree({action: "notify", args: {message: "Done!", level: "info"}}) → Report to coordinator
+worktree({action: "status"})                         → Show worktree git status
+worktree({action: "help"})                            → Show available operations
 ```
 
-List worktrees:
+### Implementation Agent Workflow
 
 ```text
-worktree_overview
+# Commands run automatically in worktree — no workdir needed
+worktree({action: "notify", args: {message: "Tests passing, starting implementation"}})
+worktree({action: "notify", args: {message: "Blocked: missing dependency", level: "blocking"}})
+worktree({action: "notify", args: {message: "Task completed", level: "info"}})
 ```
 
-Status for all worktrees:
+### Coordinator Workflow
 
 ```text
-worktree_overview { "view": "status" }
-```
+# 1. Spawn parallel tasks
+worktree({action: "spawn", args: {
+  tasks: ["auth-setup", "db-schema", "api-routes"],
+  prefix: "feat/",
+  agent: "implementation-specialist",
+  prompt: "Your task: {{task}}. Read tasks/{{task}}.md for details."
+}})
 
-Show the worktree/session dashboard:
+# 2. Monitor progress
+worktree({action: "sessions"})
 
-```text
-worktree_overview { "view": "dashboard" }
-```
+# 3a. Recovery message if degraded
+worktree({action: "message", args: {sessionID: "ses_abc...", message: "Please retry"}})
 
-Create a worktree (branch derived from name):
+# 3b. Abort if unrecoverable
+worktree({action: "abort", args: {sessionID: "ses_abc..."}})
 
-```text
-worktree_make { "action": "create", "name": "feature audit" }
-```
-
-Start a new session (creates or reuses a worktree):
-
-```text
-worktree_make { "action": "start", "name": "feature audit", "openSessions": true }
-```
-
-Open a session in an existing worktree:
-
-```text
-worktree_make { "action": "open", "pathOrBranch": "feature/audit", "openSessions": true }
-```
-
-Fork the current session into a worktree:
-
-```text
-worktree_make { "action": "fork", "name": "feature audit", "openSessions": true }
-```
-
-Create a swarm of worktrees/sessions:
-
-```text
-worktree_make { "action": "swarm", "tasks": ["refactor-auth", "docs-refresh"], "openSessions": true }
-```
-
-Query spawned session status:
-
-```text
-worktree_status
-```
-
-Send message to spawned session:
-
-```text
-worktree_message { "sessionID": "ses_abc123", "message": "Please continue from where you left off" }
-```
-
-Notify coordinator of completion:
-
-```text
-worktree_notify { "message": "Task completed successfully", "level": "info" }
-```
-
-Notify coordinator of blocking issue:
-
-```text
-worktree_notify { "message": "Cannot proceed without dependency", "level": "blocking" }
-```
-
-Abort a stuck session:
-
-```text
-worktree_abort { "sessionID": "ses_abc123" }
-```
-
-Query current session mapping:
-
-```text
-worktree_current
-```
-
-Remove a worktree:
-
-```text
-worktree_cleanup { "action": "remove", "pathOrBranch": "feature/audit" }
-```
-
-Prune stale worktree entries:
-
-```text
-worktree_cleanup { "action": "prune", "dryRun": true }
+# 4. Cleanup when done
+worktree({action: "cleanup", args: {action: "remove", pathOrBranch: "feat/auth-setup"}})
 ```
 
 ## Plugin Hooks
@@ -202,22 +135,16 @@ The plugin automatically injects context for mapped sessions:
 
 Automatically injects `workdir` for bash commands when the session is mapped to a worktree:
 
-```typescript
-// Agent doesn't need to specify workdir
-bash({ "command": "npm test" })  // Automatically runs in worktree
+```text
+bash({ "command": "npm test" })  → Automatically runs in worktree
 ```
 
 ### `shell.env`
 
 Injects environment variables for all shell commands:
 
-- `OPENCODE_WORKTREE_PATH` - Full path to worktree
-- `OPENCODE_WORKTREE_BRANCH` - Branch name
-
-```bash
-echo $OPENCODE_WORKTREE_PATH
-echo $OPENCODE_WORKTREE_BRANCH
-```
+- `OPENCODE_WORKTREE_PATH` — Full path to worktree
+- `OPENCODE_WORKTREE_BRANCH` — Branch name
 
 ### `experimental.session.compacting`
 
@@ -225,9 +152,7 @@ Custom compaction prompt that instructs the agent to summarize for itself (not a
 
 ## Real-Time Monitoring
 
-The plugin includes SSE-based anomaly detection that monitors spawned sessions:
-
-### Detection Heuristics
+SSE-based anomaly detection monitors spawned sessions:
 
 | Heuristic | Condition | Severity | Action |
 |-----------|-----------|----------|--------|
@@ -235,9 +160,7 @@ The plugin includes SSE-based anomaly detection that monitors spawned sessions:
 | **High Error Count** | >5 tool errors in session | Medium | Check session, may need guidance |
 | **Session Stall** | No activity for 60s while busy | Medium | Send "please continue" message |
 
-### Notifications
-
-The coordinator automatically receives formatted notifications with actionable suggestions:
+Notifications use `worktree` tool syntax:
 
 ```
 ⚠️ ANOMALY DETECTED [feat/auth-setup]
@@ -246,103 +169,47 @@ Session: ses_abc123
 Branch: feat/auth-setup
 Issue: MODEL_DEGRADATION (high severity)
 
-The model appears to be in a degraded state with malformed tool calls.
-Consider:
-1. Send recovery message first
-2. Abort if no improvement
-
-Run: worktree_abort({ "sessionID": "ses_abc123" })
+Run: worktree({action: "abort", args: {sessionID: "ses_abc123"}})
 ```
 
-## Defaults and safety
+## Context Awareness (with @alkdev/open-memory)
 
-- Default worktree path (when `path` is omitted):
-  - `<repo>/.worktrees/<branch>`
-- Relative `path` inputs are resolved under `.worktrees/` to prevent traversal.
-- Branch name is derived from `name` when `branch` is omitted (lowercased, spaces to `-`).
-- `worktree_cleanup` refuses to delete dirty worktrees unless `force: true`.
-- All tools return readable output with explicit paths and git commands.
+For best results, use alongside `@alkdev/open-memory` which provides:
+- Real-time context window awareness
+- Session history and search
+- Manual compaction control
 
-## Session workflow
-
-`worktree_make` actions (`start`, `open`, `fork`, `swarm`) create or reuse a worktree, then create a session in that directory.
-Each action records a mapping entry at:
-
-- `~/.config/opencode/open-coordinator/state.json` (or `${XDG_CONFIG_HOME}/opencode/open-coordinator/state.json`)
-
-The session title defaults to `wt:<branch>`, and the output includes the session ID plus next steps.
-
-Session mappings include:
-- `sessionID` - The spawned session
-- `worktreePath` - Path to the worktree
-- `branch` - Branch name
-- `parentSessionID` - Coordinator's session (for `worktree_notify`)
-- `task` - Task name (for swarm mode)
-
-### Swarm Mode
-
-Create multiple parallel worktrees/sessions:
-
-```text
-worktree_make { 
-  "action": "swarm", 
-  "tasks": ["auth-setup", "db-schema", "api-routes"],
-  "agent": "implementation-specialist",
-  "prompt": "Your task: {{task}}. Read tasks/{{task}}.md for details."
+```json
+{
+  "plugin": ["@alkimiadev/open-coordinator", "@alkdev/open-memory"]
 }
 ```
 
-Each task gets:
-- Fresh worktree: `.worktrees/wt/<task>`
-- Fresh session with no inherited context
-- Initial prompt with `{{task}}` substituted
-- Mapping in state.json with parentSessionID
+## Defaults and Safety
 
-Swarm safety notes:
-
-- `worktree_make` with `action: "swarm"` refuses to reuse existing branches or paths unless `force: true`.
-- It never deletes existing worktrees; it only creates new ones.
-
-Optional command file examples:
-
-```text
-# .opencode/command/worktree.md
-worktree_mode { "action": "$1" }
-```
-
-```text
-# .opencode/command/worktree-start.md
-worktree_make { "action": "start", "name": "$1", "openSessions": true }
-```
-
-```text
-# .opencode/command/worktree-open.md
-worktree_make { "action": "open", "pathOrBranch": "$1", "openSessions": true }
-```
-
-Slash commands (drop these files into `.opencode/command`):
-
-```text
-/worktree on
-/worktree off
-/worktree-overview
-/worktree-make <name>
-/worktree-clean <pathOrBranch>
-```
+- Default worktree path (when `path` is omitted): `<repo>/.worktrees/<branch>`
+- Relative `path` inputs are resolved under `.worktrees/` to prevent traversal
+- Branch name is derived from `name` when `branch` is omitted (lowercased, spaces to `-`)
+- Cleanup refuses to delete dirty worktrees unless `force: true`
+- Implementation agents cannot create, spawn, swarm, abort, or cleanup — only report and query
 
 ## Development
-
-E2E tests exercise the CLI against a temporary OpenCode config file.
 
 ```bash
 bun run lint
 bun run typecheck
 bun run build
 bun run test
-bun run test:e2e
-bun pm scan
-npm audit --omit=dev
 ```
+
+For local testing, symlink your repo to OpenCode's plugin cache:
+
+```bash
+rm -rf ~/.cache/opencode/node_modules/@alkimiadev/open-coordinator
+ln -s /path/to/open-coordinator ~/.cache/opencode/node_modules/@alkimiadev/open-coordinator
+```
+
+After rebuilding (`bun run build`), restart OpenCode to pick up changes.
 
 ## Versioning
 

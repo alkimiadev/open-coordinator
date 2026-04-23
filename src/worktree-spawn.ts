@@ -2,7 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin";
 
 import { formatError } from "./format";
 import { getRepoRoot } from "./git";
-import { defaultWorktreePath, normalizeBranchName } from "./paths";
+import { normalizeBranchName } from "./paths";
 import { err, ok, type ToolResult } from "./result";
 import { unwrapSdkResponse } from "./sdk";
 import { storeSessionMapping } from "./state";
@@ -149,7 +149,7 @@ export const spawnWorktrees = async (
 
   lines.push("");
   lines.push("Sessions are running asynchronously in the background.");
-  lines.push("Use worktree_status to check progress.");
+  lines.push('Use worktree({action: "sessions"}) to check progress.');
 
   return ok(lines.join("\n"));
 };

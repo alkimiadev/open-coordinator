@@ -1,4 +1,4 @@
-import type { SessionMetrics, AnomalyType, AnomalyInfo, DetectionThresholds } from "./types";
+import type { AnomalyInfo, AnomalyType, DetectionThresholds, SessionMetrics } from "./types";
 import { DEFAULT_THRESHOLDS } from "./types";
 
 export const detectMalformedTool = (

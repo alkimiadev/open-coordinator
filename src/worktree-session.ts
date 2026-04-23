@@ -130,7 +130,7 @@ const resolveExistingTarget = (repoRoot: string, worktrees: WorktreeInfo[], inpu
     return {
       ok: false as const,
       error: formatError("No worktree matches the provided value.", {
-        hint: 'Use worktree_overview { "view": "list" } to see available worktrees.',
+        hint: 'Use worktree({action: "list"}) to see available worktrees.',
       }),
     };
   }
@@ -196,7 +196,7 @@ const resolveSessionTarget = async (
       return {
         ok: false as const,
         error: formatError("Worktree path not found.", {
-          hint: 'Use worktree_overview { "view": "list" } to see available worktrees.',
+          hint: 'Use worktree({action: "list"}) to see available worktrees.',
         }),
       };
     }
@@ -224,7 +224,7 @@ const resolveSessionTarget = async (
     return {
       ok: false as const,
       error: formatError("No worktree matches the provided value.", {
-        hint: 'Use worktree_make { "action": "create" } to create one first.',
+        hint: 'Use worktree({action: "create"}) to create one first.',
       }),
     };
   }

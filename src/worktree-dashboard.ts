@@ -69,7 +69,7 @@ export const dashboardWorktrees = async (ctx: PluginInput): Promise<ToolResult> 
   if (stateResult.state.entries.length === 0) {
     return err(
       formatError("No worktree sessions recorded.", {
-        hint: 'Run worktree_make { "action": "start" } to create a mapping.',
+        hint: 'Run worktree({action: "start"}) to create a mapping.',
       }),
     );
   }
