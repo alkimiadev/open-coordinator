@@ -161,7 +161,7 @@ const resolveSessionTarget = async (
   options: WorktreeSessionOptions,
   requireExisting: boolean,
 ): Promise<{ ok: true; target: WorktreeSessionTarget } | { ok: false; error: string }> => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return { ok: false as const, error: repoRoot.error };
 
   const worktreesResult = await getWorktrees(ctx, repoRoot.path);

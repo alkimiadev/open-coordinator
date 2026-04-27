@@ -37,7 +37,7 @@ const prepareWorktreeDirectory = async (worktreePath: string) => {
 };
 
 export const listWorktrees = async (ctx: PluginInput): Promise<ToolResult> => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const worktreesResult = await getWorktrees(ctx, repoRoot.path);
@@ -73,7 +73,7 @@ export const createWorktreeDetails = async (
   ctx: PluginInput,
   options: { name?: string; branch?: string; base?: string; path?: string },
 ) => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return { ok: false as const, error: repoRoot.error };
 
   const name = options.name?.trim() ?? "";
@@ -179,7 +179,7 @@ export const removeWorktree = async (
   ctx: PluginInput,
   options: { pathOrBranch: string; force?: boolean },
 ): Promise<ToolResult> => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const worktreesResult = await getWorktrees(ctx, repoRoot.path);
@@ -268,7 +268,7 @@ export const pruneWorktrees = async (
   ctx: PluginInput,
   options: { dryRun?: boolean },
 ): Promise<ToolResult> => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const args = options.dryRun ? ["worktree", "prune", "--dry-run"] : ["worktree", "prune"];

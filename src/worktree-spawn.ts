@@ -86,7 +86,7 @@ export const spawnWorktrees = async (
     );
   }
 
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const effectiveModel = options.model ?? (await resolveCoordinatorModel(ctx, parentSessionID));

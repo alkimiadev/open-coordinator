@@ -79,24 +79,18 @@ export const formatGitFailure = (result: GitCommandResult, hint?: string) => {
   });
 };
 
-export const getRepoRoot = async (ctx: PluginInput) => {
-  const result = await runGit(ctx, ["rev-parse", "--show-toplevel"]);
-
-  if (!result.ok) {
-    return { ok: false as const, error: formatGitFailure(result) };
-  }
-
-  const root = result.stdout.trim();
-  if (!root) {
+export const getRepoRoot = (ctx: PluginInput) => {
+  const worktree = ctx.worktree;
+  if (!worktree) {
     return {
       ok: false as const,
-      error: formatError("Unable to resolve git repository root.", {
-        command: result.command,
+      error: formatError("No worktree/project root available.", {
+        hint: "Run this tool from within an OpenCode session with a git project.",
       }),
     };
   }
 
-  return { ok: true as const, path: root };
+  return { ok: true as const, path: worktree };
 };
 
 export const getWorktrees = async (ctx: PluginInput, repoRoot: string) => {

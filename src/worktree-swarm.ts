@@ -55,7 +55,7 @@ export const swarmWorktrees = async (
     );
   }
 
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const prefix = options.prefix ?? "wt/";

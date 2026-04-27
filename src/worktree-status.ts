@@ -11,7 +11,7 @@ export const statusWorktrees = async (
   ctx: PluginInput,
   options: { path?: string; all?: boolean; porcelain?: boolean },
 ): Promise<ToolResult> => {
-  const repoRoot = await getRepoRoot(ctx);
+  const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
 
   const worktreesResult = await getWorktrees(ctx, repoRoot.path);
