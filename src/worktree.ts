@@ -383,3 +383,112 @@ export const listMergedBranches = async (
 
   return ok(lines.join("\n"));
 };
+
+export const mergeWorktreeBranch = async (
+  ctx: PluginInput,
+  options: { branch: string; target?: string; deleteBranch?: boolean; remote?: boolean },
+): Promise<ToolResult> => {
+  const repoRoot = getRepoRoot(ctx);
+  if (!repoRoot.ok) return err(repoRoot.error);
+
+  const branch = options.branch.trim();
+  if (!branch) {
+    return err(formatError("branch is required.", { hint: "Provide the branch name to merge." }));
+  }
+
+  const target = options.target?.trim() || "main";
+
+  const branchCheck = await runGit(
+    ctx,
+    ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+    { cwd: repoRoot.path },
+  );
+  if (!branchCheck.ok) {
+    return err(
+      formatError(`Branch '${branch}' does not exist locally.`, {
+        hint: "Check the branch name with git branch.",
+      }),
+    );
+  }
+
+  const targetCheck = await runGit(
+    ctx,
+    ["show-ref", "--verify", "--quiet", `refs/heads/${target}`],
+    { cwd: repoRoot.path },
+  );
+  if (!targetCheck.ok) {
+    return err(
+      formatError(`Target branch '${target}' does not exist locally.`, {
+        hint: `Create it first or use a different target branch.`,
+      }),
+    );
+  }
+
+  const lines: string[] = [];
+  let stashed = false;
+
+  const statusResult = await runGit(ctx, ["status", "--porcelain"], { cwd: repoRoot.path });
+  if (statusResult.ok) {
+    const summary = summarizePorcelain(statusResult.stdout);
+    if (!summary.clean) {
+      lines.push("Working directory has uncommitted changes. Stashing...");
+      const stashResult = await runGit(ctx, ["stash", "--include-untracked"], {
+        cwd: repoRoot.path,
+      });
+      if (!stashResult.ok) {
+        return err(
+          formatGitFailure(stashResult, "Stash failed. Resolve uncommitted changes manually."),
+        );
+      }
+      stashed = true;
+      lines.push("Stashed successfully.");
+    }
+  }
+
+  const checkoutResult = await runGit(ctx, ["checkout", target], { cwd: repoRoot.path });
+  if (!checkoutResult.ok) {
+    if (stashed) {
+      await runGit(ctx, ["stash", "pop"], { cwd: repoRoot.path });
+    }
+    return err(formatGitFailure(checkoutResult, `Could not checkout target branch '${target}'.`));
+  }
+  lines.push(`Checked out '${target}'.`);
+
+  const mergeResult = await runGit(ctx, ["merge", branch], { cwd: repoRoot.path });
+  if (!mergeResult.ok) {
+    lines.push(`Merge of '${branch}' into '${target}' failed.`);
+    lines.push(mergeResult.stderr.trim() || mergeResult.stdout.trim());
+    if (stashed) {
+      lines.push("Warning: Stashed changes were not restored due to merge conflict.");
+    }
+    return ok(lines.join("\n"));
+  }
+  lines.push(`Merged '${branch}' into '${target}'.`);
+
+  if (stashed) {
+    const popResult = await runGit(ctx, ["stash", "pop"], { cwd: repoRoot.path });
+    if (popResult.ok) {
+      lines.push("Stash restored.");
+    } else {
+      lines.push(`Warning: Could not restore stash: ${popResult.stderr.trim()}`);
+    }
+  }
+
+  if (options.deleteBranch !== false) {
+    const branchDeleteResult = await runGit(ctx, ["branch", "-d", branch], { cwd: repoRoot.path });
+    if (branchDeleteResult.ok) {
+      lines.push(`Local branch '${branch}' deleted.`);
+    } else {
+      lines.push(
+        `Warning: Could not delete local branch '${branch}': ${branchDeleteResult.stderr.trim()}`,
+      );
+    }
+  }
+
+  if (options.remote) {
+    const remoteResult = await deleteRemoteBranch(ctx, branch);
+    lines.push(remoteResult.ok ? remoteResult.output : `Warning: ${remoteResult.error}`);
+  }
+
+  return ok(lines.join("\n"));
+};

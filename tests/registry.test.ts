@@ -78,6 +78,7 @@ test("isOpAllowed: coordinator can access all operations", () => {
     "sessions",
     "abort",
     "cleanup",
+    "merge",
     "current",
   ]) {
     expect(isOpAllowed(op, "coordinator")).toBe(true);
@@ -103,6 +104,7 @@ test("isOpAllowed: implementation can only access allowed operations", () => {
     "sessions",
     "abort",
     "cleanup",
+    "merge",
   ];
   for (const op of forbidden) {
     expect(isOpAllowed(op, "implementation")).toBe(false);
@@ -114,7 +116,7 @@ test("getAvailableOps returns sorted operations for coordinator", () => {
   expect(ops).toContain("create");
   expect(ops).toContain("spawn");
   expect(ops).toContain("cleanup");
-  expect(ops.length).toBe(16);
+  expect(ops.length).toBe(17);
 });
 
 test("getAvailableOps returns limited operations for implementation", () => {

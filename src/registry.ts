@@ -13,6 +13,7 @@ import {
   deleteRemoteBranch,
   listMergedBranches,
   listWorktrees,
+  mergeWorktreeBranch,
   pruneWorktrees,
   removeWorktree,
 } from "./worktree";
@@ -49,6 +50,7 @@ const COORDINATOR_OPS = new Set([
   "sessions",
   "abort",
   "cleanup",
+  "merge",
   "current",
   "notify",
 ]);
@@ -87,6 +89,7 @@ Your role determines which operations are available:
 | sessions | Query status of spawned sessions | sessionIDs (optional filter), status (optional filter) |
 | abort | Abort a spawned session | sessionID |
 | cleanup | Remove, prune, or clean up merged worktrees | action (remove/prune/merged), pathOrBranch, force, remote, dryRun, prefix |
+| merge | Merge a worktree branch into target | branch, target, deleteBranch, remote |
 | current | Show current session's worktree mapping | — |
 
 Examples:
@@ -99,7 +102,9 @@ Examples:
 - \`worktree({action: "notify", args: {message: "Done!", level: "info"}})\`
 - \`worktree({action: "cleanup", args: {action: "prune", dryRun: true}})\`
 - \`worktree({action: "cleanup", args: {action: "merged", dryRun: true}})\`
-- \`worktree({action: "cleanup", args: {action: "merged", remote: true}})\``;
+- \`worktree({action: "cleanup", args: {action: "merged", remote: true}})\`
+- \`worktree({action: "merge", args: {branch: "wt/feature-auth"}})\`
+- \`worktree({action: "merge", args: {branch: "wt/feature-auth", target: "main", remote: true}})\``;
 
 const OP_HELP: Record<string, string> = {
   help: `**help** — Show available operations and usage. Args: action (string, optional operation name for details).`,
@@ -128,6 +133,8 @@ Args: sessionIDs (string[], optional filter to specific sessions), status (strin
 Args: sessionID (string, required).`,
   cleanup: `**cleanup** — Remove, prune, or clean up merged worktrees. Destructive operation.
 Args: action (string: "remove" | "prune" | "merged", required), pathOrBranch (string, required for remove), force (boolean), remote (boolean, also delete remote branches), dryRun (boolean, for prune/merged), prefix (string, for merged, default "wt/").`,
+  merge: `**merge** — Merge a worktree branch into a target branch with auto-stash.
+Args: branch (string, required — the branch to merge), target (string, default "main" — the branch to merge into), deleteBranch (boolean, default true — delete local branch after merge), remote (boolean — also delete remote branch after merge).`,
   current: `**current** — Show the worktree mapping for the current session. No args needed.`,
 };
 
@@ -473,6 +480,34 @@ const handlers: Record<string, Handler> = {
     if (entry.task) lines.push(`Task: ${entry.task}`);
     if (entry.parentSessionID) lines.push(`Coordinator: ${entry.parentSessionID}`);
     return lines.join("\n");
+  },
+
+  async merge(args, hctx) {
+    const branch = typeof args.branch === "string" ? args.branch.trim() : "";
+    if (!branch) {
+      return formatError("branch is required.", {
+        hint: "Provide the branch name to merge (e.g., 'wt/feature-auth').",
+      });
+    }
+
+    const result = await mergeWorktreeBranch(hctx.ctx, {
+      branch,
+      target: typeof args.target === "string" ? args.target.trim() : undefined,
+      deleteBranch: args.deleteBranch !== false,
+      remote: args.remote === true,
+    });
+
+    if (result.ok) {
+      const stateResult = await readState();
+      if (stateResult.ok) {
+        const matches = stateResult.state.entries.filter((e) => e.branch === branch);
+        for (const match of matches) {
+          await updateSessionStatus(match.sessionID, "completed");
+        }
+      }
+    }
+
+    return result.ok ? result.output : result.error;
   },
 };
 
