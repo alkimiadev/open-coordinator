@@ -1,7 +1,7 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import type { Event } from "@opencode-ai/sdk";
 import { deleteSessionMetrics, startDetection } from "./detection";
-import { findSessionEntry, removeSessionMappings } from "./state";
+import { findSessionEntry, reconcileState, removeSessionMappings } from "./state";
 import { createTools } from "./tools";
 
 const getDeletedSessionId = (event: Event) =>
@@ -9,6 +9,17 @@ const getDeletedSessionId = (event: Event) =>
 
 const OpenCoordinatorPlugin: Plugin = async (ctx) => {
   const _detectionController = startDetection(ctx);
+
+  const reconcileResult = await reconcileState();
+  if (reconcileResult.ok && reconcileResult.removed.length > 0) {
+    ctx.client.app.log({
+      body: {
+        service: "open-coordinator",
+        level: "info",
+        message: `Reconciled state: removed ${reconcileResult.removed.length} orphaned entries (worktree paths no longer exist).`,
+      },
+    });
+  }
 
   return {
     tool: createTools(ctx),

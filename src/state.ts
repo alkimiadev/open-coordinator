@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 
 import { ensureConfigDir, getOpenTreesPath } from "./config";
 import { formatError } from "./format";
@@ -180,4 +180,44 @@ export const updateSessionStatus = async (sessionID: string, status: SessionStat
   const writeResult = await writeState(stateResult.path, stateResult.state);
   if (!writeResult.ok) return writeResult;
   return { ok: true as const, updated: true };
+};
+
+const pathExists = async (target: string): Promise<boolean> => {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const reconcileState = async () => {
+  const stateResult = await readState();
+  if (!stateResult.ok) {
+    return { ok: false as const, error: stateResult.error };
+  }
+
+  const before = stateResult.state.entries.length;
+  const kept: WorktreeSessionEntry[] = [];
+  const removed: WorktreeSessionEntry[] = [];
+
+  for (const entry of stateResult.state.entries) {
+    const exists = await pathExists(entry.worktreePath);
+    if (exists) {
+      kept.push(entry);
+    } else {
+      removed.push(entry);
+    }
+  }
+
+  if (removed.length === 0) {
+    return { ok: true as const, removed: [] as WorktreeSessionEntry[], kept: before };
+  }
+
+  const writeResult = await writeState(stateResult.path, { entries: kept });
+  if (!writeResult.ok) {
+    return { ok: false as const, error: writeResult.error };
+  }
+
+  return { ok: true as const, removed, kept: kept.length };
 };
