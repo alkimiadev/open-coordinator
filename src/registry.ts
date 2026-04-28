@@ -1,12 +1,20 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import { formatError } from "./format";
+import { formatGitFailure, getRepoRoot, runGit } from "./git";
 import {
   findSessionEntry,
   readState,
   removeSessionMappings,
   removeSessionMappingsByBranch,
 } from "./state";
-import { createWorktree, listWorktrees, pruneWorktrees, removeWorktree } from "./worktree";
+import {
+  createWorktree,
+  deleteRemoteBranch,
+  listMergedBranches,
+  listWorktrees,
+  pruneWorktrees,
+  removeWorktree,
+} from "./worktree";
 import { dashboardWorktrees } from "./worktree-dashboard";
 import { forkWorktreeSession, openWorktreeSession, startWorktreeSession } from "./worktree-session";
 import { spawnWorktrees } from "./worktree-spawn";
@@ -77,7 +85,7 @@ Your role determines which operations are available:
 | notify | Send message to coordinator session | message, level (info/warning/blocking) |
 | sessions | Query status of spawned sessions | sessionIDs (optional filter) |
 | abort | Abort a spawned session | sessionID |
-| cleanup | Remove or prune worktrees | action (remove/prune), pathOrBranch, force, dryRun |
+| cleanup | Remove, prune, or clean up merged worktrees | action (remove/prune/merged), pathOrBranch, force, remote, dryRun, prefix |
 | current | Show current session's worktree mapping | — |
 
 Examples:
@@ -88,7 +96,9 @@ Examples:
 - \`worktree({action: "start", args: {name: "feature audit", openSessions: true}})\`
 - \`worktree({action: "spawn", args: {tasks: ["auth", "db"], prefix: "feat/"}})\`
 - \`worktree({action: "notify", args: {message: "Done!", level: "info"}})\`
-- \`worktree({action: "cleanup", args: {action: "prune", dryRun: true}})\``;
+- \`worktree({action: "cleanup", args: {action: "prune", dryRun: true}})\`
+- \`worktree({action: "cleanup", args: {action: "merged", dryRun: true}})\`
+- \`worktree({action: "cleanup", args: {action: "merged", remote: true}})\``;
 
 const OP_HELP: Record<string, string> = {
   help: `**help** — Show available operations and usage. Args: action (string, optional operation name for details).`,
@@ -113,10 +123,10 @@ Args: sessionID (string, required), message (string, required), agent (string, o
 Args: message (string, required), level (string: "info" | "warning" | "blocking", default "info").`,
   sessions: `**sessions** — Query status of sessions spawned by this coordinator.
 Args: sessionIDs (string[], optional filter to specific sessions).`,
-  abort: `**abort** — Abort a spawned session that is stuck, degraded, or needs intervention.
+  abort: `**abort** — Abort a spawned session and clean up its worktree. Removes the worktree, local branch, and state entry.
 Args: sessionID (string, required).`,
-  cleanup: `**cleanup** — Remove or prune worktrees. Destructive operation.
-Args: action (string: "remove" | "prune", required), pathOrBranch (string, required for remove), force (boolean), dryRun (boolean, for prune).`,
+  cleanup: `**cleanup** — Remove, prune, or clean up merged worktrees. Destructive operation.
+Args: action (string: "remove" | "prune" | "merged", required), pathOrBranch (string, required for remove), force (boolean), remote (boolean, also delete remote branches), dryRun (boolean, for prune/merged), prefix (string, for merged, default "wt/").`,
   current: `**current** — Show the worktree mapping for the current session. No args needed.`,
 };
 
@@ -355,6 +365,7 @@ const handlers: Record<string, Handler> = {
       const result = await removeWorktree(hctx.ctx, {
         pathOrBranch,
         force: args.force === true,
+        remote: args.remote === true,
       });
 
       if (result.ok) {
@@ -370,8 +381,66 @@ const handlers: Record<string, Handler> = {
       return result.ok ? result.output : result.error;
     }
 
-    return formatError("action must be 'remove' or 'prune'.", {
-      hint: 'Use worktree({action: "cleanup", args: {action: "prune", dryRun: true}}) to preview.',
+    if (args.action === "merged") {
+      const prefix = typeof args.prefix === "string" ? args.prefix : "wt/";
+      const listResult = await listMergedBranches(hctx.ctx, { prefix });
+      if (!listResult.ok) return listResult.error;
+
+      if (args.dryRun === true) {
+        return `${listResult.output}\n\n(dry run — no branches were deleted)`;
+      }
+
+      const repoRoot = getRepoRoot(hctx.ctx);
+      if (!repoRoot.ok) return repoRoot.error;
+
+      const mergedResult = await runGit(hctx.ctx, ["branch", "--merged", "HEAD"], {
+        cwd: repoRoot.path,
+      });
+      if (!mergedResult.ok) return formatGitFailure(mergedResult);
+
+      const branches = mergedResult.stdout
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith(prefix) && l !== "main" && l !== "master");
+
+      if (branches.length === 0) {
+        return "No merged branches found matching prefix.";
+      }
+
+      const stateResult = await readState();
+
+      const lines: string[] = [];
+      for (const branch of branches) {
+        const localResult = await runGit(hctx.ctx, ["branch", "-d", branch], {
+          cwd: repoRoot.path,
+        });
+        const deleted = localResult.ok;
+        lines.push(
+          `Local branch ${branch}: ${deleted ? "deleted" : `failed (${localResult.stderr.trim()})`}`,
+        );
+
+        if (args.remote === true) {
+          const remoteResult = await deleteRemoteBranch(hctx.ctx, branch);
+          lines.push(`  Remote: ${remoteResult.ok ? remoteResult.output : remoteResult.error}`);
+        }
+
+        if (stateResult.ok) {
+          const matches = stateResult.state.entries.filter((e) => e.branch === branch);
+          for (const match of matches) {
+            await removeSessionMappingsByBranch(match.branch);
+          }
+          if (matches.length > 0) {
+            lines.push(`  State entries removed: ${matches.length}`);
+          }
+        }
+      }
+
+      lines.push(`\nCleaned up ${branches.length} merged branch(es).`);
+      return lines.join("\n");
+    }
+
+    return formatError("action must be 'remove', 'prune', or 'merged'.", {
+      hint: 'Use worktree({action: "cleanup", args: {action: "merged", dryRun: true}}) to preview merged branches.',
     });
   },
 

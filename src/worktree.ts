@@ -183,7 +183,7 @@ export type RemoveWorktreeResult = {
 
 export const removeWorktree = async (
   ctx: PluginInput,
-  options: { pathOrBranch: string; force?: boolean },
+  options: { pathOrBranch: string; force?: boolean; remote?: boolean },
 ): Promise<ToolResult> => {
   const repoRoot = getRepoRoot(ctx);
   if (!repoRoot.ok) return err(repoRoot.error);
@@ -264,6 +264,11 @@ export const removeWorktree = async (
     branchDeleted = branchResult.ok;
   }
 
+  let remoteResult: ToolResult | null = null;
+  if (options.remote && branchName) {
+    remoteResult = await deleteRemoteBranch(ctx, branchName);
+  }
+
   const lines = [
     "Worktree removed.",
     `Branch: ${branchLabel(target)}`,
@@ -275,6 +280,10 @@ export const removeWorktree = async (
     lines.push(`Branch ${branchName} deleted.`);
   } else if (branchName && !branchDeleted) {
     lines.push(`Warning: Branch ${branchName} could not be deleted. Remove it manually if needed.`);
+  }
+
+  if (remoteResult) {
+    lines.push(remoteResult.ok ? remoteResult.output : `Warning: ${remoteResult.error}`);
   }
 
   if (options.force) {
@@ -303,6 +312,74 @@ export const pruneWorktrees = async (
     `Command: ${command}`,
     output ? `Output: ${output}` : "Output: (none)",
   ];
+
+  return ok(lines.join("\n"));
+};
+
+export const deleteRemoteBranch = async (ctx: PluginInput, branch: string): Promise<ToolResult> => {
+  const repoRoot = getRepoRoot(ctx);
+  if (!repoRoot.ok) return err(repoRoot.error);
+
+  const remoteResult = await runGit(ctx, ["remote"], { cwd: repoRoot.path });
+  if (!remoteResult.ok) return err(formatGitFailure(remoteResult));
+  const remotes = remoteResult.stdout
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (remotes.length === 0) {
+    return ok("No remotes configured. Skipping remote branch deletion.");
+  }
+
+  const lines: string[] = [];
+  for (const remote of remotes) {
+    const pushResult = await runGit(ctx, ["push", remote, "--delete", branch], {
+      cwd: repoRoot.path,
+    });
+    if (pushResult.ok) {
+      lines.push(`Remote branch ${branch} deleted from ${remote}.`);
+    } else {
+      const stderr = pushResult.stderr.trim();
+      if (
+        stderr.toLowerCase().includes("not found") ||
+        stderr.toLowerCase().includes("does not exist") ||
+        stderr.toLowerCase().includes("remote ref") ||
+        pushResult.exitCode === 1
+      ) {
+        lines.push(`Remote branch ${branch} not found on ${remote} (may already be deleted).`);
+      } else {
+        lines.push(`Warning: Could not delete remote branch ${branch} from ${remote}: ${stderr}`);
+      }
+    }
+  }
+
+  return ok(lines.join("\n"));
+};
+
+export const listMergedBranches = async (
+  ctx: PluginInput,
+  options: { prefix?: string; remote?: boolean },
+): Promise<ToolResult> => {
+  const repoRoot = getRepoRoot(ctx);
+  if (!repoRoot.ok) return err(repoRoot.error);
+
+  const prefix = options.prefix ?? "wt/";
+
+  const mergedResult = await runGit(ctx, ["branch", "--merged", "HEAD"], { cwd: repoRoot.path });
+  if (!mergedResult.ok) return err(formatGitFailure(mergedResult));
+
+  const allMerged = mergedResult.stdout
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith(prefix));
+
+  const lines: string[] = [`Merged branches matching prefix '${prefix}':`];
+  if (allMerged.length === 0) {
+    lines.push("(none)");
+  } else {
+    for (const branch of allMerged) {
+      lines.push(`  ${branch}`);
+    }
+  }
 
   return ok(lines.join("\n"));
 };
