@@ -1,6 +1,6 @@
 {
   "name": "@alkdev/open-coordinator",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "OpenCode plugin for coordinated git worktree workflows with enhanced session management.",
   "type": "module",
   "main": "dist/index.js",
