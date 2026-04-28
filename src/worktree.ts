@@ -175,6 +175,12 @@ export const createWorktree = async (
   return ok(lines.join("\n"));
 };
 
+export type RemoveWorktreeResult = {
+  branch: string | null;
+  path: string;
+  branchDeleted: boolean;
+};
+
 export const removeWorktree = async (
   ctx: PluginInput,
   options: { pathOrBranch: string; force?: boolean },
@@ -250,12 +256,26 @@ export const removeWorktree = async (
   const removeResult = await runGit(ctx, args, { cwd: repoRoot.path });
   if (!removeResult.ok) return err(formatGitFailure(removeResult));
 
+  let branchDeleted = false;
+  const branchName = target.branch;
+  if (branchName) {
+    const branchArgs = options.force ? ["branch", "-D", branchName] : ["branch", "-d", branchName];
+    const branchResult = await runGit(ctx, branchArgs, { cwd: repoRoot.path });
+    branchDeleted = branchResult.ok;
+  }
+
   const lines = [
     "Worktree removed.",
     `Branch: ${branchLabel(target)}`,
     `Path: ${target.path}`,
     `Command: ${command}`,
   ];
+
+  if (branchName && branchDeleted) {
+    lines.push(`Branch ${branchName} deleted.`);
+  } else if (branchName && !branchDeleted) {
+    lines.push(`Warning: Branch ${branchName} could not be deleted. Remove it manually if needed.`);
+  }
 
   if (options.force) {
     lines.push("Note: Removed with --force.");

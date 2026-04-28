@@ -121,3 +121,37 @@ export const removeSessionMappings = async (sessionID: string) => {
   if (!writeResult.ok) return writeResult;
   return { ok: true as const, removed: removedCount, path: stateResult.path };
 };
+
+export const removeSessionMappingsByBranch = async (branch: string) => {
+  const stateResult = await readState();
+  if (!stateResult.ok) return stateResult;
+
+  const nextEntries = stateResult.state.entries.filter((entry) => entry.branch !== branch);
+  const removedCount = stateResult.state.entries.length - nextEntries.length;
+
+  if (removedCount === 0) {
+    return { ok: true as const, removed: 0, path: stateResult.path };
+  }
+
+  const writeResult = await writeState(stateResult.path, { entries: nextEntries });
+  if (!writeResult.ok) return writeResult;
+  return { ok: true as const, removed: removedCount, path: stateResult.path };
+};
+
+export const removeSessionMappingsByPath = async (worktreePath: string) => {
+  const stateResult = await readState();
+  if (!stateResult.ok) return stateResult;
+
+  const nextEntries = stateResult.state.entries.filter(
+    (entry) => entry.worktreePath !== worktreePath,
+  );
+  const removedCount = stateResult.state.entries.length - nextEntries.length;
+
+  if (removedCount === 0) {
+    return { ok: true as const, removed: 0, path: stateResult.path };
+  }
+
+  const writeResult = await writeState(stateResult.path, { entries: nextEntries });
+  if (!writeResult.ok) return writeResult;
+  return { ok: true as const, removed: removedCount, path: stateResult.path };
+};

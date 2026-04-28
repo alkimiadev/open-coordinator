@@ -1,6 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import { formatError } from "./format";
-import { findSessionEntry, readState } from "./state";
+import {
+  findSessionEntry,
+  readState,
+  removeSessionMappings,
+  removeSessionMappingsByBranch,
+} from "./state";
 import { createWorktree, listWorktrees, pruneWorktrees, removeWorktree } from "./worktree";
 import { dashboardWorktrees } from "./worktree-dashboard";
 import { forkWorktreeSession, openWorktreeSession, startWorktreeSession } from "./worktree-session";
@@ -299,8 +304,28 @@ const handlers: Record<string, Handler> = {
     const sessionID = typeof args.sessionID === "string" ? args.sessionID : "";
     if (!sessionID) return formatError("sessionID is required.");
 
+    const entry = await findSessionEntry(sessionID);
+
     await hctx.ctx.client.session.abort({ path: { id: sessionID } });
-    return `Session ${sessionID} aborted.`;
+
+    const lines = [`Session ${sessionID} aborted.`];
+
+    if (entry) {
+      await removeSessionMappings(sessionID);
+
+      const removeResult = await removeWorktree(hctx.ctx, {
+        pathOrBranch: entry.branch || entry.worktreePath,
+        force: true,
+      });
+
+      if (removeResult.ok) {
+        lines.push(`Worktree removed: ${entry.branch}`);
+      } else {
+        lines.push(`Warning: Could not remove worktree: ${removeResult.error}`);
+      }
+    }
+
+    return lines.join("\n");
   },
 
   async cleanup(args, hctx) {
@@ -316,10 +341,32 @@ const handlers: Record<string, Handler> = {
           hint: "Provide a worktree path or branch name.",
         });
       }
+
+      const stateResult = await readState();
+      const matchingEntries =
+        stateResult.ok && pathOrBranch.startsWith("wt/")
+          ? stateResult.state.entries.filter((e) => e.branch === pathOrBranch)
+          : stateResult.ok
+            ? stateResult.state.entries.filter(
+                (e) => e.branch === pathOrBranch || e.worktreePath === pathOrBranch,
+              )
+            : [];
+
       const result = await removeWorktree(hctx.ctx, {
         pathOrBranch,
         force: args.force === true,
       });
+
+      if (result.ok) {
+        for (const entry of matchingEntries) {
+          await removeSessionMappingsByBranch(entry.branch);
+        }
+        if (matchingEntries.length > 0) {
+          const stateInfo = `State entries removed: ${matchingEntries.length}`;
+          return `${result.output}\n${stateInfo}`;
+        }
+      }
+
       return result.ok ? result.output : result.error;
     }
 
