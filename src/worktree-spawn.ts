@@ -1,7 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 
 import { formatError } from "./format";
-import { getRepoRoot } from "./git";
+import { getRepoRoot, runGit } from "./git";
 import { normalizeBranchName } from "./paths";
 import { err, ok, type ToolResult } from "./result";
 import { unwrapSdkResponse } from "./sdk";
@@ -127,12 +127,26 @@ export const spawnWorktrees = async (
     const createResult = unwrapSdkResponse<{ id: string }>(createResponse, "Session create");
     if (!createResult.ok) {
       errors.push(`${branch}: ${createResult.error}`);
+      const repoRoot = getRepoRoot(ctx);
+      if (repoRoot.ok) {
+        await runGit(ctx, ["worktree", "remove", "--force", worktreeResult.result.worktreePath], {
+          cwd: repoRoot.path,
+        }).catch(() => {});
+        await runGit(ctx, ["branch", "-D", branch], { cwd: repoRoot.path }).catch(() => {});
+      }
       continue;
     }
 
     const sessionID = createResult.data.id;
     if (!sessionID) {
       errors.push(`${branch}: Session create returned no ID`);
+      const repoRoot = getRepoRoot(ctx);
+      if (repoRoot.ok) {
+        await runGit(ctx, ["worktree", "remove", "--force", worktreeResult.result.worktreePath], {
+          cwd: repoRoot.path,
+        }).catch(() => {});
+        await runGit(ctx, ["branch", "-D", branch], { cwd: repoRoot.path }).catch(() => {});
+      }
       continue;
     }
 

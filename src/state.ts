@@ -1,4 +1,6 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { ensureConfigDir, getOpenTreesPath } from "./config";
 import { formatError } from "./format";
@@ -81,10 +83,20 @@ const writeState = async (statePath: string, state: WorktreeState) => {
   if (!dirResult.ok) return dirResult;
 
   const content = `${JSON.stringify(state, null, 2)}\n`;
+  const tmpPath = path.join(
+    tmpdir(),
+    `open-coordinator-state-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`,
+  );
   try {
-    await writeFile(statePath, content, "utf8");
+    await writeFile(tmpPath, content, "utf8");
+    await rename(tmpPath, statePath);
     return { ok: true as const };
   } catch (error) {
+    try {
+      await unlink(tmpPath);
+    } catch {
+      // ignore cleanup failures
+    }
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false as const,

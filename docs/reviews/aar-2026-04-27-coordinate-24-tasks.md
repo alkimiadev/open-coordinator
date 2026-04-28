@@ -117,14 +117,24 @@ These make monitoring unreliable and leave artifacts behind.
 
 | # | Change | Files |
 |---|--------|-------|
-| 13 | Add file locking for `state.json` writes (e.g., `proper-lockfile`) | `state.ts` |
+| 13 | Add file locking for `state.json` writes (atomic write via temp+rename) | `state.ts` |
 | 14 | Add rollback to `spawnWorktrees` — if session creation fails, clean up the already-created worktree and branch | `worktree-spawn.ts` |
 | 15 | Persist detection metrics to disk or state.json | `detection/metrics.ts` |
 
 ---
 
-## Expected Impact
+## Implementation Status
 
-Implementing P0 alone eliminates the most visible bugs (stale state, orphaned branches, abort not cleaning up). P1 and P2 together address the bulk of the operational friction experienced during the session — specifically, the inability to quickly clean up after completing 24 tasks. P3 provides a safety net. P4 and P5 polish the system for production use.
+All P0-P4 items and P5 items 13-14 have been implemented:
 
-Estimated reduction in friction: from ~5h wall time to ~4h or less on an equivalent workload, primarily from eliminating manual state cleanup, branch deletion, and conflict-heavy manual merges.
+| Commit | Description |
+|--------|-------------|
+| `4fde12a` | docs: add AAR and improvement roadmap |
+| `b0a9cd6` | fix: cleanup remove and abort now clean up state entries and local branches (P0) |
+| `67c1a04` | feat: add remote branch cleanup and merged branch batch cleanup (P1) |
+| `be21a9a` | feat: add session lifecycle tracking with status, completedAt, and filter (P2) |
+| `f2b81f4` | feat: add startup reconciliation to prune stale state entries (P3) |
+| `69d4d2b` | feat: add merge operation for worktree branches (P4) |
+| *(latest)* | feat: atomic state writes and spawn rollback on failure (P5 items 13-14) |
+
+Remaining: P5 item 15 (persist detection metrics) — lower priority, can be addressed in a future iteration.
