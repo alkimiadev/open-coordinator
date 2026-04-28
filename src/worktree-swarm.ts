@@ -127,6 +127,7 @@ export const swarmWorktrees = async (
       sessionID: createResult.data.id,
       parentSessionID: sessionID,
       task: rawTask,
+      status: "active",
       createdAt,
     });
 

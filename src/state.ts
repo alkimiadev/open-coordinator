@@ -3,13 +3,17 @@ import { readFile, writeFile } from "node:fs/promises";
 import { ensureConfigDir, getOpenTreesPath } from "./config";
 import { formatError } from "./format";
 
+export type SessionStatus = "active" | "completed" | "failed" | "aborted";
+
 export type WorktreeSessionEntry = {
   worktreePath: string;
   branch: string;
   sessionID: string;
   parentSessionID?: string;
   task?: string;
+  status?: SessionStatus;
   createdAt: string;
+  completedAt?: string;
 };
 
 type WorktreeState = {
@@ -154,4 +158,26 @@ export const removeSessionMappingsByPath = async (worktreePath: string) => {
   const writeResult = await writeState(stateResult.path, { entries: nextEntries });
   if (!writeResult.ok) return writeResult;
   return { ok: true as const, removed: removedCount, path: stateResult.path };
+};
+
+export const updateSessionStatus = async (sessionID: string, status: SessionStatus) => {
+  const stateResult = await readState();
+  if (!stateResult.ok) return stateResult;
+
+  const entryIndex = stateResult.state.entries.findIndex((e) => e.sessionID === sessionID);
+  if (entryIndex === -1) {
+    return { ok: true as const, updated: false };
+  }
+
+  stateResult.state.entries[entryIndex] = {
+    ...stateResult.state.entries[entryIndex],
+    status,
+    ...(status === "completed" || status === "failed" || status === "aborted"
+      ? { completedAt: new Date().toISOString() }
+      : {}),
+  };
+
+  const writeResult = await writeState(stateResult.path, stateResult.state);
+  if (!writeResult.ok) return writeResult;
+  return { ok: true as const, updated: true };
 };

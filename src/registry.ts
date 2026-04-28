@@ -6,6 +6,7 @@ import {
   readState,
   removeSessionMappings,
   removeSessionMappingsByBranch,
+  updateSessionStatus,
 } from "./state";
 import {
   createWorktree,
@@ -83,7 +84,7 @@ Your role determines which operations are available:
 | spawn | Create worktrees + sessions + send async prompts | tasks, prefix, agent, prompt |
 | message | Send message to a spawned session | sessionID, message, agent |
 | notify | Send message to coordinator session | message, level (info/warning/blocking) |
-| sessions | Query status of spawned sessions | sessionIDs (optional filter) |
+| sessions | Query status of spawned sessions | sessionIDs (optional filter), status (optional filter) |
 | abort | Abort a spawned session | sessionID |
 | cleanup | Remove, prune, or clean up merged worktrees | action (remove/prune/merged), pathOrBranch, force, remote, dryRun, prefix |
 | current | Show current session's worktree mapping | — |
@@ -122,7 +123,7 @@ Args: sessionID (string, required), message (string, required), agent (string, o
   notify: `**notify** — Send a message back to the coordinator session. Implementation agents use this to report completion or issues.
 Args: message (string, required), level (string: "info" | "warning" | "blocking", default "info").`,
   sessions: `**sessions** — Query status of sessions spawned by this coordinator.
-Args: sessionIDs (string[], optional filter to specific sessions).`,
+Args: sessionIDs (string[], optional filter to specific sessions), status (string, optional filter: "active" | "completed" | "failed" | "aborted").`,
   abort: `**abort** — Abort a spawned session and clean up its worktree. Removes the worktree, local branch, and state entry.
 Args: sessionID (string, required).`,
   cleanup: `**cleanup** — Remove, prune, or clean up merged worktrees. Destructive operation.
@@ -286,6 +287,12 @@ const handlers: Record<string, Handler> = {
       },
     });
 
+    if (level === "blocking") {
+      await updateSessionStatus(hctx.sessionID ?? "", "failed");
+    } else {
+      await updateSessionStatus(hctx.sessionID ?? "", "completed");
+    }
+
     return `Notified coordinator: ${text}`;
   },
 
@@ -299,13 +306,20 @@ const handlers: Record<string, Handler> = {
       entries = entries.filter((e) => sessionIDs.includes(e.sessionID));
     }
 
+    const statusFilter = typeof args.status === "string" ? args.status : undefined;
+    if (statusFilter) {
+      entries = entries.filter((e) => (e.status ?? "active") === statusFilter);
+    }
+
     if (entries.length === 0) return "No sessions found.";
 
     const lines: string[] = [];
-    lines.push("| sessionID | branch | task | worktreePath |");
-    lines.push("|-----------|--------|------|--------------|");
+    lines.push("| sessionID | branch | task | status | worktreePath |");
+    lines.push("|-----------|--------|------|--------|--------------|");
     for (const e of entries) {
-      lines.push(`| ${e.sessionID} | ${e.branch} | ${e.task ?? "-"} | ${e.worktreePath} |`);
+      lines.push(
+        `| ${e.sessionID} | ${e.branch} | ${e.task ?? "-"} | ${e.status ?? "active"} | ${e.worktreePath} |`,
+      );
     }
     return lines.join("\n");
   },
@@ -333,6 +347,8 @@ const handlers: Record<string, Handler> = {
       } else {
         lines.push(`Warning: Could not remove worktree: ${removeResult.error}`);
       }
+    } else {
+      await updateSessionStatus(sessionID, "aborted");
     }
 
     return lines.join("\n");

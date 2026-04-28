@@ -271,6 +271,7 @@ const createSessionFromTarget = async (
     worktreePath: target.worktreePath,
     branch: target.branch,
     sessionID: sessionResult.data.id,
+    status: "active",
     createdAt,
   });
 
@@ -359,6 +360,7 @@ export const forkWorktreeSession = async (
     branch: targetResult.target.branch,
     sessionID: createResult.data.id,
     parentSessionID: sessionID,
+    status: "active",
     createdAt,
   });
 

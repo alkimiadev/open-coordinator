@@ -143,6 +143,7 @@ export const spawnWorktrees = async (
       sessionID,
       parentSessionID,
       task: rawTask,
+      status: "active",
       createdAt,
     });
 
